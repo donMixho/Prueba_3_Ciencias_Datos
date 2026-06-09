@@ -1,0 +1,46 @@
+# Parámetros del pipeline ETL NHANES
+# Documentación: https://docs.kedro.org/en/stable/configure/parameters/
+
+# --- Selección de columnas por archivo (renombradas en processing) ---
+columns:
+  demographics: [SEQN, RIAGENDR, RIDAGEYR, RIDRETH3, DMDEDUC2, INDFMPIR]
+  body_measures: [SEQN, BMXBMI, BMXWT, BMXHT, BMXWAIST]
+  blood_pressure: [SEQN, BPXSY1, BPXSY2, BPXSY3, BPXSY4, BPXDI1, BPXDI2, BPXDI3, BPXDI4]
+  glucose: [SEQN, LBXGLU]
+  hba1c: [SEQN, LBXGH]
+  cholesterol_total: [SEQN, LBXTC]
+  cholesterol_hdl: [SEQN, LBDHDD]
+  triglycerides: [SEQN, LBXTR, LBDLDL]
+  diabetes_q: [SEQN, DIQ010]
+  bloodpressure_q: [SEQN, BPQ020]
+  smoking_q: [SEQN, SMQ020]
+  activity_q: [SEQN, PAQ650]
+
+# --- Reglas de feature engineering / umbrales clínicos ---
+thresholds:
+  bmi:
+    underweight: 18.5
+    normal: 25.0
+    overweight: 30.0
+  hypertension_systolic: 130   # mmHg (ACC/AHA)
+  hypertension_diastolic: 80   # mmHg
+  diabetes_fasting_glucose: 126  # mg/dL
+  diabetes_hba1c: 6.5          # %
+  age_groups:
+    - {label: "18-29", min: 18, max: 29}
+    - {label: "30-44", min: 30, max: 44}
+    - {label: "45-64", min: 45, max: 64}
+    - {label: "65+",   min: 65, max: 150}
+
+# --- Fuente 3: API REST (data.cdc.gov Socrata) ---
+cdc_api:
+  base_url: "https://data.cdc.gov/resource"
+  dataset_id: "hn4x-zwk7"   # Nutrition, Physical Activity, and Obesity
+  limit: 5000
+  # filtros opcionales para reducir el volumen traído
+  where: "yearstart = '2018' AND question like '%obesity%'"
+
+# Validación de esquemas (mínimo de filas esperadas por dataset crudo)
+validation:
+  min_rows: 1000
+  drop_invalid_codes: true   # 7777/9999 = "rehúsa/no sabe" en NHANES

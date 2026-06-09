@@ -1,0 +1,15 @@
+# Imagen efímera para sembrar la base de datos de laboratorio en Postgres
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends libpq-dev gcc \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install pandas>=2.3.3 sqlalchemy>=2.0 psycopg2-binary>=2.9
+
+COPY docker/seed_db.py ./docker/seed_db.py
+COPY data/01_raw/nhanes ./data/01_raw/nhanes
+
+CMD ["python", "docker/seed_db.py"]

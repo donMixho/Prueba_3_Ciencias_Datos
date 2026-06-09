@@ -1,101 +1,93 @@
-# Prueba
+# 🩺 NHANES — Plataforma de Análisis de Riesgo Cardiometabólico
 
 [![Powered by Kedro](https://img.shields.io/badge/powered_by-kedro-ffc900?logo=kedro)](https://kedro.org)
 
-## Overview
+Solución **end-to-end** de ciencia de datos sobre la encuesta de salud
+**NHANES 2017-2018 (CDC)**. Integra **tres fuentes de datos**, las procesa con un
+pipeline ETL reproducible y expone los resultados mediante una **API REST** y un
+**dashboard interactivo**, todo orquestado con **Docker**.
 
-This is your new Kedro project, which was generated using `kedro 1.4.0`.
+> Evaluación Parcial N°3 — *Programación para la Ciencia de Datos (SCY1101)*.
 
-Take a look at the [Kedro documentation](https://docs.kedro.org) to get started.
+## 🎯 Las tres fuentes de datos
 
-## Rules and guidelines
+| # | Tipo | Datos | Tecnología |
+|---|------|-------|-----------|
+| 1 | **Archivos planos (CSV/XPT)** | Demografía, examen físico, cuestionarios | `pandas.CSVDataset` |
+| 2 | **Base de datos SQL** | Resultados de laboratorio | PostgreSQL + `SQLQueryDataset` |
+| 3 | **API REST** | Obesidad por estado | `data.cdc.gov` (Socrata) |
 
-In order to get the best out of the template:
+Todas se unen por la llave **`SEQN`** (identificador del encuestado).
 
-* Don't remove any lines from the `.gitignore` file we provide
-* Make sure your results can be reproduced by following a data engineering convention
-* Don't commit data to your repository
-* Don't commit any credentials or your local configuration to your repository. Keep all your credentials and local configuration in `conf/local/`
-
-## How to install dependencies
-
-Declare any dependencies in `requirements.txt` for `pip` installation.
-
-To install them, run:
+## 🏗️ Arquitectura
 
 ```
+Archivos CSV ┐
+BD SQL       ├─► ETL (Kedro) ─► reporting (Parquet) ─► API (FastAPI) ─► Dashboard (Streamlit)
+API REST     ┘     ingestion → processing → reporting
+```
+Detalle y diagrama en [docs/architecture.md](docs/architecture.md).
+
+## 📁 Estructura del proyecto
+
+```
+.
+├── src/prueba/            # Pipeline ETL (Kedro)
+│   ├── pipelines/
+│   │   ├── ingestion/     #  extracción de las 3 fuentes + validación
+│   │   ├── processing/    #  limpieza, merge por SEQN, feature engineering
+│   │   └── reporting/     #  agregaciones para negocio
+│   └── utils/             #  cliente API REST, validación de esquemas
+├── api/                   # API REST (FastAPI)
+├── dashboards/            # Dashboard (Streamlit) con vistas por audiencia
+├── docker/                # Dockerfiles, seed de Postgres
+├── docker-compose.yml     # Orquestación de todo el stack
+├── scripts/               # Descarga reproducible de datos NHANES
+├── tests/                 # Tests automatizados (pytest)
+├── docs/                  # Arquitectura, API, manual, despliegue, diccionario
+├── repo/                  # Evidencia de colaboración Git
+├── conf/                  # Catálogo, parámetros y credenciales (Kedro)
+└── data/                  # Datos (no versionados; reproducibles vía scripts)
+```
+
+## 🚀 Inicio rápido (Docker)
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+- API → <http://localhost:8000/docs>
+- Dashboard → <http://localhost:8501>
+
+## 🛠️ Inicio rápido (local)
+
+```bash
 pip install -r requirements.txt
+python scripts/download_nhanes.py     # descarga los .XPT de la CDC
+python scripts/xpt_to_csv.py          # genera los CSV (fuente 1)
+python docker/seed_db.py              # carga la fuente 2 en Postgres (opcional)
+kedro run                             # ejecuta el ETL completo
+uvicorn api.main:app --port 8000      # API
+streamlit run dashboards/app.py       # Dashboard
 ```
 
-## How to run your Kedro pipeline
+## 🧪 Testing
 
-You can run your Kedro project with:
-
-```
-kedro run
+```bash
+pytest                # ejecuta los tests con cobertura
 ```
 
-## How to test your Kedro project
+## 📚 Documentación
 
-Have a look at the file `tests/test_run.py` for instructions on how to write your tests. You can run your tests as follows:
+- [Arquitectura](docs/architecture.md) · [API](docs/api.md) ·
+  [Despliegue](docs/deployment.md) · [Manual de usuario](docs/user_manual.md) ·
+  [Diccionario de datos](docs/data_dictionary.md)
+- [Workflow de Git](repo/git_workflow.md)
 
-```
-pytest
-```
+## 📊 Dominio de análisis
+Factores de riesgo **cardiometabólico** (obesidad, hipertensión, diabetes y
+dislipidemia) en la población adulta de EE.UU. El pipeline calcula banderas
+clínicas (criterios OMS / ACC-AHA) y un **score de riesgo compuesto (0-4)**.
 
-You can configure the coverage threshold in your project's `pyproject.toml` file under the `[tool.coverage.report]` section.
-
-
-## Project dependencies
-
-To see and update the dependency requirements for your project use `requirements.txt`. You can install the project requirements with `pip install -r requirements.txt`.
-
-[Further information about project dependencies](https://docs.kedro.org/en/stable/kedro_project_setup/dependencies.html#project-specific-dependencies)
-
-## How to work with Kedro and notebooks
-
-> Note: Using `kedro jupyter` or `kedro ipython` to run your notebook provides these variables in scope: `context`, 'session', `catalog`, and `pipelines`.
->
-> Jupyter, JupyterLab, and IPython are already included in the project requirements by default, so once you have run `pip install -r requirements.txt` you will not need to take any extra steps before you use them.
-
-### Jupyter
-To use Jupyter notebooks in your Kedro project, you need to install Jupyter:
-
-```
-pip install jupyter
-```
-
-After installing Jupyter, you can start a local notebook server:
-
-```
-kedro jupyter notebook
-```
-
-### JupyterLab
-To use JupyterLab, you need to install it:
-
-```
-pip install jupyterlab
-```
-
-You can also start JupyterLab:
-
-```
-kedro jupyter lab
-```
-
-### IPython
-And if you want to run an IPython session:
-
-```
-kedro ipython
-```
-
-### How to ignore notebook output cells in `git`
-To automatically strip out all output cell contents before committing to `git`, you can use tools like [`nbstripout`](https://github.com/kynan/nbstripout). For example, you can add a hook in `.git/config` with `nbstripout --install`. This will run `nbstripout` before anything is committed to `git`.
-
-> *Note:* Your output cells will be retained locally.
-
-## Package your Kedro project
-
-[Further information about building project documentation and packaging your project](https://docs.kedro.org/en/stable/deploy/package_a_project/#package-an-entire-kedro-project)
+---
+*Datos: [CDC / NHANES 2017-2018](https://wwwn.cdc.gov/nchs/nhanes/). Uso educativo.*

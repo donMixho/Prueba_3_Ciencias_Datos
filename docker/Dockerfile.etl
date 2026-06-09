@@ -1,0 +1,30 @@
+# Imagen del pipeline ETL (Kedro)
+FROM python:3.11-slim AS base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Dependencias del sistema mínimas (psycopg2, pyarrow)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instala dependencias primero (mejor uso de caché de capas)
+COPY requirements.txt ./
+RUN pip install -r requirements.txt
+
+# Copia el proyecto
+COPY pyproject.toml ./
+COPY conf ./conf
+COPY src ./src
+COPY scripts ./scripts
+COPY data ./data
+
+# Instala el paquete del proyecto
+RUN pip install -e .
+
+# Por defecto ejecuta el pipeline completo
+CMD ["kedro", "run"]

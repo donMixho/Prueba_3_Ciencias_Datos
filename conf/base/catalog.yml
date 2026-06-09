@@ -1,4 +1,101 @@
-# Here you can define all your datasets by using simple YAML syntax.
+# Data Catalog — NHANES cardiometabólico
+# https://docs.kedro.org/en/stable/catalog-data/introduction/
 #
-# Documentation for this file format can be found in "The Data Catalog"
-# Link: https://docs.kedro.org/en/stable/catalog-data/introduction/#data-catalog
+# Tres fuentes de datos:
+#   1) Archivos planos (CSV)  -> demografía, examen y cuestionarios (01_raw)
+#   2) Base de datos SQL      -> laboratorio (Postgres, ver credentials.yml)
+#   3) API REST               -> data.cdc.gov (cargada por nodo de ingestion)
+
+# ---------------------------------------------------------------------------
+# FUENTE 1 — Archivos planos CSV (data/01_raw/nhanes_csv)
+# ---------------------------------------------------------------------------
+_csv: &csv
+  type: pandas.CSVDataset
+
+raw_demographics:
+  <<: *csv
+  filepath: data/01_raw/nhanes_csv/DEMO_J.csv
+
+raw_body_measures:
+  <<: *csv
+  filepath: data/01_raw/nhanes_csv/BMX_J.csv
+
+raw_blood_pressure:
+  <<: *csv
+  filepath: data/01_raw/nhanes_csv/BPX_J.csv
+
+raw_diabetes_q:
+  <<: *csv
+  filepath: data/01_raw/nhanes_csv/DIQ_J.csv
+
+raw_bloodpressure_q:
+  <<: *csv
+  filepath: data/01_raw/nhanes_csv/BPQ_J.csv
+
+raw_smoking_q:
+  <<: *csv
+  filepath: data/01_raw/nhanes_csv/SMQ_J.csv
+
+raw_activity_q:
+  <<: *csv
+  filepath: data/01_raw/nhanes_csv/PAQ_J.csv
+
+# ---------------------------------------------------------------------------
+# FUENTE 2 — Base de datos SQL (Postgres). Tablas de laboratorio.
+# La conexión 'con' se define en conf/local/credentials.yml (db_lab).
+# ---------------------------------------------------------------------------
+_sql: &sql
+  type: pandas.SQLQueryDataset
+  credentials: db_lab
+
+raw_lab_glucose:
+  <<: *sql
+  sql: "SELECT seqn, lbxglu FROM lab_glucose"
+
+raw_lab_hba1c:
+  <<: *sql
+  sql: "SELECT seqn, lbxgh FROM lab_hba1c"
+
+raw_lab_cholesterol:
+  <<: *sql
+  sql: "SELECT seqn, lbxtc, lbdhdd FROM lab_cholesterol"
+
+raw_lab_triglycerides:
+  <<: *sql
+  sql: "SELECT seqn, lbxtr, lbdldl FROM lab_triglycerides"
+
+# ---------------------------------------------------------------------------
+# FUENTE 3 — API REST (se descarga en el nodo `extract_cdc_api`)
+# Se persiste como snapshot para reproducibilidad.
+# ---------------------------------------------------------------------------
+raw_cdc_obesity_api:
+  type: pandas.ParquetDataset
+  filepath: data/01_raw/cdc_api/obesity_by_state.parquet
+  metadata:
+    note: "Snapshot de data.cdc.gov; refrescado por el pipeline de ingestion"
+
+# ---------------------------------------------------------------------------
+# CAPAS INTERMEDIAS / PRIMARIA
+# ---------------------------------------------------------------------------
+int_clinical_merged:
+  type: pandas.ParquetDataset
+  filepath: data/02_intermediate/clinical_merged.parquet
+
+prm_cardiometabolic:
+  type: pandas.ParquetDataset
+  filepath: data/03_primary/cardiometabolic.parquet
+
+# ---------------------------------------------------------------------------
+# CAPA DE REPORTING (consumida por la API y el dashboard)
+# ---------------------------------------------------------------------------
+rpt_summary_by_demographics:
+  type: pandas.ParquetDataset
+  filepath: data/08_reporting/summary_by_demographics.parquet
+
+rpt_prevalence:
+  type: pandas.ParquetDataset
+  filepath: data/08_reporting/prevalence.parquet
+
+rpt_state_obesity:
+  type: pandas.ParquetDataset
+  filepath: data/08_reporting/state_obesity.parquet

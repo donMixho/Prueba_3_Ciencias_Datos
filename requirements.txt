@@ -1,4 +1,15 @@
+# --- Núcleo Kedro / ETL ---
+kedro~=1.4.0
+kedro-datasets[pandas-csvdataset,pandas-parquetdataset,pandas-sqlquerydataset]>=3.0
+pandas>=2.3.3
+pyarrow>=15.0
+
+# --- Fuentes de datos ---
+requests>=2.31          # API REST (data.cdc.gov)
+SQLAlchemy>=2.0         # fuente SQL
+psycopg2-binary>=2.9    # driver Postgres
+
+# --- Notebooks / exploración ---
 ipython>=8.10
 jupyterlab>=3.0
 notebook
-kedro~=1.4.0

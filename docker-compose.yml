@@ -1,0 +1,90 @@
+# Orquestación end-to-end: Postgres + seed + ETL (Kedro) + API + Dashboard
+# Uso:
+#   cp .env.example .env
+#   docker compose up --build
+# Servicios web:
+#   API  -> http://localhost:8000/docs
+#   Dash -> http://localhost:8501
+
+services:
+  # --- Fuente 2: base de datos SQL ---
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nhanes}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nhanes}
+      POSTGRES_DB: ${POSTGRES_DB:-nhanes}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nhanes}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # --- Carga inicial de tablas de laboratorio en Postgres ---
+  db-seed:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.seed
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-nhanes}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nhanes}
+      POSTGRES_DB: ${POSTGRES_DB:-nhanes}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # --- Pipeline ETL (Kedro): integra las 3 fuentes y genera reporting ---
+  etl:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.etl
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-nhanes}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nhanes}
+      POSTGRES_DB: ${POSTGRES_DB:-nhanes}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # --- API REST (FastAPI) ---
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      REPORTING_DIR: /app/data/08_reporting
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      etl:
+        condition: service_completed_successfully
+
+  # --- Dashboard (Streamlit) ---
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboards/Dockerfile
+    environment:
+      API_URL: http://api:8000
+      REPORTING_DIR: /app/data/08_reporting
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
