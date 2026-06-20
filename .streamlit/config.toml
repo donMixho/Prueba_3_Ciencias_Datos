@@ -1,0 +1,13 @@
+# Tema visual del dashboard (paleta médica/profesional)
+[theme]
+primaryColor = "#0E7490"            # cyan-700 (acento principal)
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F1F5F9" # slate-100 (paneles/sidebar)
+textColor = "#0F172A"               # slate-900
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

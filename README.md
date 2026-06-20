@@ -81,8 +81,10 @@ pytest                # ejecuta los tests con cobertura
 
 - [Arquitectura](docs/architecture.md) · [API](docs/api.md) ·
   [Despliegue](docs/deployment.md) · [Manual de usuario](docs/user_manual.md) ·
-  [Diccionario de datos](docs/data_dictionary.md)
-- [Workflow de Git](repo/git_workflow.md)
+  [Diccionario de datos](docs/data_dictionary.md) · [Informe de pruebas](docs/testing.md)
+- [Guion de presentación](docs/presentation/guion_presentacion.md) ·
+  [Workflow de Git](repo/git_workflow.md) · [Cómo contribuir](CONTRIBUTING.md)
+- Notebook de análisis exploratorio: [notebooks/01_analisis_exploratorio.ipynb](notebooks/01_analisis_exploratorio.ipynb)
 
 ## 📊 Dominio de análisis
 Factores de riesgo **cardiometabólico** (obesidad, hipertensión, diabetes y

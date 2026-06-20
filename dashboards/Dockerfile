@@ -12,6 +12,7 @@ COPY dashboards/requirements.txt ./dashboards/requirements.txt
 RUN pip install -r dashboards/requirements.txt
 
 COPY dashboards ./dashboards
+COPY .streamlit ./.streamlit
 
 EXPOSE 8501
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \

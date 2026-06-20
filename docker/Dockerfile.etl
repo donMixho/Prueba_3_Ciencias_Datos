@@ -1,5 +1,5 @@
 # Imagen del pipeline ETL (Kedro)
-FROM python:3.11-slim AS base
+FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -16,15 +16,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
-# Copia el proyecto
-COPY pyproject.toml ./
+# Copia el proyecto (los datos NO se copian: ver .dockerignore)
+COPY pyproject.toml README.md ./
 COPY conf ./conf
 COPY src ./src
 COPY scripts ./scripts
-COPY data ./data
 
-# Instala el paquete del proyecto
 RUN pip install -e .
 
-# Por defecto ejecuta el pipeline completo
-CMD ["kedro", "run"]
+# En runtime: asegura los datos (descarga + convierte a CSV) y corre el ETL.
+# Los datos se persisten en el volumen montado en /app/data.
+CMD ["sh", "-c", "python scripts/download_nhanes.py && python scripts/xpt_to_csv.py && kedro run"]

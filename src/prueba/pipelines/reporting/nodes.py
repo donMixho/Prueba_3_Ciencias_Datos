@@ -8,9 +8,24 @@ import pandas as pd
 
 log = logging.getLogger(__name__)
 
+# Grupos etarios adultos (excluye menores y edad desconocida del análisis clínico)
+ADULT_GROUPS = ["18-29", "30-44", "45-64", "65+"]
+
+
+def _adults(df: pd.DataFrame) -> pd.DataFrame:
+    """Filtra la cohorte adulta (18+) con grupo etario conocido.
+
+    El análisis cardiometabólico se define sobre adultos; los menores y los
+    registros con edad desconocida se excluran para no sesgar las prevalencias.
+    """
+    if "age_group" not in df.columns:
+        return df
+    return df[df["age_group"].isin(ADULT_GROUPS)].copy()
+
 
 def summary_by_demographics(df: pd.DataFrame) -> pd.DataFrame:
     """Indicadores promedio por grupo etario y sexo (vista operativa/técnica)."""
+    df = _adults(df)
     metrics = ["bmi", "bp_systolic_mean", "bp_diastolic_mean", "glucose_mgdl", "hba1c_pct"]
     metrics = [m for m in metrics if m in df.columns]
     out = (
@@ -27,6 +42,7 @@ def summary_by_demographics(df: pd.DataFrame) -> pd.DataFrame:
 
 def prevalence(df: pd.DataFrame) -> pd.DataFrame:
     """Prevalencia (%) de condiciones por grupo etario (vista ejecutiva)."""
+    df = _adults(df)
     flags = ["obesity_flag", "hypertension_flag", "diabetes_flag", "smoker_flag"]
     flags = [f for f in flags if f in df.columns]
     out = (

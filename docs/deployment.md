@@ -39,11 +39,11 @@ pip install -r requirements.txt
 python scripts/download_nhanes.py
 python scripts/xpt_to_csv.py
 
-# 3. (Opcional) Postgres local para la fuente SQL
-#    Ajusta POSTGRES_* en .env y ejecuta:
+# 3. Sembrar la fuente SQL (por defecto SQLite, sin servidor)
 python docker/seed_db.py
+#    (Para usar Postgres en su lugar: exporta DB_URL antes de este paso)
 
-# 4. Ejecutar el pipeline ETL
+# 4. Ejecutar el pipeline ETL completo (integra las 3 fuentes)
 kedro run
 
 # 5. Levantar API y dashboard (en terminales separadas)

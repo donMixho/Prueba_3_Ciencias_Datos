@@ -30,10 +30,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile.seed
     environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: ${POSTGRES_USER:-nhanes}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nhanes}
-      POSTGRES_DB: ${POSTGRES_DB:-nhanes}
+      DB_URL: postgresql+psycopg2://${POSTGRES_USER:-nhanes}:${POSTGRES_PASSWORD:-nhanes}@postgres:5432/${POSTGRES_DB:-nhanes}
+    volumes:
+      - ./data:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,10 +44,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.etl
     environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_USER: ${POSTGRES_USER:-nhanes}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nhanes}
-      POSTGRES_DB: ${POSTGRES_DB:-nhanes}
+      DB_URL: postgresql+psycopg2://${POSTGRES_USER:-nhanes}:${POSTGRES_PASSWORD:-nhanes}@postgres:5432/${POSTGRES_DB:-nhanes}
     volumes:
       - ./data:/app/data
     depends_on:

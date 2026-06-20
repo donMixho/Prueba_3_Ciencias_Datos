@@ -1,25 +1,27 @@
-"""
-This module contains example tests for a Kedro project.
-Tests should be placed in ``src/tests``, in modules that mirror your
-project's structure, and in files named test_*.py.
-"""
-import pytest
-from pathlib import Path
-from kedro.framework.session import KedroSession
-from kedro.framework.startup import bootstrap_project
+"""Tests de estructura de los pipelines del proyecto."""
 
-# The tests below are here for the demonstration purpose
-# and should be replaced with the ones testing the project
-# functionality
+from __future__ import annotations
 
-class TestKedroRun:
-    def test_kedro_run_no_pipeline(self):
-    # This example test expects a pipeline run failure, since
-    # the default project template contains no pipelines.
-        bootstrap_project(Path.cwd())
+from prueba.pipelines.ingestion import create_pipeline as ingestion_pipeline
+from prueba.pipelines.processing import create_pipeline as processing_pipeline
+from prueba.pipelines.reporting import create_pipeline as reporting_pipeline
 
-        with pytest.raises(Exception) as excinfo:
-            with KedroSession.create(project_path=Path.cwd()) as session:
-                session.run()
 
-        assert "Pipeline contains no nodes" in str(excinfo.value)
+def test_each_pipeline_has_nodes():
+    """Cada pipeline se construye y contiene nodos."""
+    assert len(ingestion_pipeline().nodes) >= 1
+    assert len(processing_pipeline().nodes) >= 3
+    assert len(reporting_pipeline().nodes) >= 3
+
+
+def test_processing_outputs_primary_dataset():
+    """El pipeline de processing produce el dataset primario esperado."""
+    outputs = processing_pipeline().all_outputs()
+    assert "prm_cardiometabolic" in outputs
+
+
+def test_reporting_consumes_primary_and_api():
+    """El reporting consume el dataset primario y el snapshot de la API."""
+    inputs = reporting_pipeline().all_inputs()
+    assert "prm_cardiometabolic" in inputs
+    assert "raw_cdc_obesity_api" in inputs

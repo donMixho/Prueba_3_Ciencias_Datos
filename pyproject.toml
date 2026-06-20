@@ -81,7 +81,17 @@ select = [
     "PL",  # Pylint
     "T201", # Print Statement
 ]
-ignore = ["E501"]  # Ruff format takes care of line-too-long
+ignore = [
+    "E501",    # Ruff format takes care of line-too-long
+    "T201",    # los scripts CLI usan print intencionalmente
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Los tests usan valores literales en asserts e imports diferidos legítimos.
+"tests/*" = ["PLR2004", "PLC0415"]
+# Los nodos Kedro reciben múltiples datasets como argumentos por diseño.
+"src/prueba/pipelines/processing/nodes.py" = ["PLR0913"]
+"src/prueba/utils/io_sources.py" = ["PLR0913"]
 
 [tool.kedro_telemetry]
 project_id = "365f522d3c0e4f97b5a4081286afddc3"

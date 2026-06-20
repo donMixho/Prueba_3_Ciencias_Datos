@@ -1,0 +1,30 @@
+# Evita copiar datos pesados y artefactos al contexto de build de Docker.
+# Los datos se obtienen en runtime (entrypoint descarga + volumen montado).
+
+.git
+.github
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+.env
+
+# Datos (543 MB) — NO van en la imagen; se montan como volumen
+data/
+!data/**/.gitkeep
+
+# Notebooks y documentación no son necesarios en las imágenes de servicio
+notebooks/
+docs/
+repo/
+*.md
+!README.md
+
+# Salida de build
+build/
+dist/
+*.egg-info/

@@ -1,4 +1,4 @@
-# Imagen efímera para sembrar la base de datos de laboratorio en Postgres
+# Imagen efímera para sembrar la base de datos de laboratorio (fuente SQL)
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
@@ -7,9 +7,10 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends libpq-dev gcc \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install pandas>=2.3.3 sqlalchemy>=2.0 psycopg2-binary>=2.9
+    && pip install "pandas>=2.3.3" "sqlalchemy>=2.0" "psycopg2-binary>=2.9" "requests>=2.31"
 
+COPY scripts/download_nhanes.py ./scripts/download_nhanes.py
 COPY docker/seed_db.py ./docker/seed_db.py
-COPY data/01_raw/nhanes ./data/01_raw/nhanes
 
-CMD ["python", "docker/seed_db.py"]
+# Descarga los .xpt de laboratorio (si faltan) y siembra la base de datos.
+CMD ["sh", "-c", "python scripts/download_nhanes.py && python docker/seed_db.py"]

@@ -33,25 +33,37 @@ TABLES = {
 
 
 def _engine():
-    user = os.getenv("POSTGRES_USER", "nhanes")
-    pwd = os.getenv("POSTGRES_PASSWORD", "nhanes")
-    host = os.getenv("POSTGRES_HOST", "localhost")
-    port = os.getenv("POSTGRES_PORT", "5432")
-    db = os.getenv("POSTGRES_DB", "nhanes")
-    return create_engine(f"postgresql+psycopg2://{user}:{pwd}@{host}:{port}/{db}")
+    # Una sola variable controla el destino:
+    #   - local: sqlite (sin servidor)
+    #   - docker: postgres (DB_URL inyectada por compose)
+    url = os.getenv("DB_URL")
+    if not url:
+        host = os.getenv("POSTGRES_HOST")
+        if host:  # compatibilidad con variables POSTGRES_* sueltas
+            user = os.getenv("POSTGRES_USER", "nhanes")
+            pwd = os.getenv("POSTGRES_PASSWORD", "nhanes")
+            port = os.getenv("POSTGRES_PORT", "5432")
+            db = os.getenv("POSTGRES_DB", "nhanes")
+            url = f"postgresql+psycopg2://{user}:{pwd}@{host}:{port}/{db}"
+        else:
+            url = "sqlite:///data/01_raw/lab.db"
+    log.info("Destino de la base de datos: %s", url.split("@")[-1])
+    return create_engine(url)
 
 
 def wait_for_db(engine, retries: int = 30, delay: float = 2.0) -> None:
+    if engine.url.get_backend_name() == "sqlite":
+        return  # sqlite es un archivo local, no hay que esperar
     for i in range(1, retries + 1):
         try:
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
-            log.info("Postgres disponible")
+            log.info("Base de datos disponible")
             return
         except Exception as exc:  # noqa: BLE001
-            log.info("esperando Postgres (%d/%d): %s", i, retries, exc)
+            log.info("esperando base de datos (%d/%d): %s", i, retries, exc)
             time.sleep(delay)
-    raise RuntimeError("Postgres no respondió a tiempo")
+    raise RuntimeError("La base de datos no respondió a tiempo")
 
 
 def main() -> int:
