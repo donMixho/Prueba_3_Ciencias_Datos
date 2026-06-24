@@ -17,6 +17,8 @@ log = logging.getLogger(__name__)
 
 def _select(df: pd.DataFrame, cols: list[str], name: str) -> pd.DataFrame:
     """Selecciona columnas existentes y avisa de las ausentes."""
+    df = df.copy()
+    df.columns = [c.upper() for c in df.columns]
     present = [c for c in cols if c in df.columns]
     missing = set(cols) - set(present)
     if missing:
