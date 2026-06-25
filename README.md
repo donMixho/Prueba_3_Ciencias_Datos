@@ -3,7 +3,7 @@
 [![Powered by Kedro](https://img.shields.io/badge/powered_by-kedro-ffc900?logo=kedro)](https://kedro.org)
 
 Solución **end-to-end** de ciencia de datos sobre la encuesta de salud
-**NHANES 2017-2018 (CDC)**. Integra **tres fuentes de datos**, las procesa con un
+**NHANES Pre-Pandemic 2017-marzo 2020 (CDC)**. Integra **tres fuentes de datos**, las procesa con un
 pipeline ETL reproducible y expone los resultados mediante una **API REST** y un
 **dashboard interactivo**, todo orquestado con **Docker**.
 
@@ -88,8 +88,14 @@ pytest                # ejecuta los tests con cobertura
 
 ## 📊 Dominio de análisis
 Factores de riesgo **cardiometabólico** (obesidad, hipertensión, diabetes y
-dislipidemia) en la población adulta de EE.UU. El pipeline calcula banderas
-clínicas (criterios OMS / ACC-AHA) y un **score de riesgo compuesto (0-4)**.
+dislipidemia) en la población adulta de EE.UU. (**15.560 personas**). El pipeline
+calcula banderas clínicas (criterios OMS / ACC-AHA) y un **score de riesgo
+compuesto (0-4)**.
+
+> 📅 **Periodo:** se usa el dataset **Pre-Pandemic 2017-marzo 2020** (prefijo `P_`),
+> que combina los ciclos 2017-2018 y 2019-2020. El ciclo 2019-2020 no se publicó
+> por separado debido a la interrupción por COVID-19, por lo que este es el modo
+> oficial de incluir datos de 2019-2020.
 
 ---
-*Datos: [CDC / NHANES 2017-2018](https://wwwn.cdc.gov/nchs/nhanes/). Uso educativo.*
+*Datos: [CDC / NHANES Pre-Pandemic 2017-2020](https://wwwn.cdc.gov/nchs/nhanes/). Uso educativo.*

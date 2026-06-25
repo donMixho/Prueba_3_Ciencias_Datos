@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from kedro.pipeline import Pipeline, node, pipeline
 
-from .nodes import prevalence, state_obesity, summary_by_demographics
+from .nodes import (
+    nutrition_by_obesity,
+    prevalence,
+    state_obesity,
+    summary_by_demographics,
+)
 
 
 def create_pipeline(**kwargs) -> Pipeline:
@@ -21,6 +26,12 @@ def create_pipeline(**kwargs) -> Pipeline:
                 inputs="prm_cardiometabolic",
                 outputs="rpt_prevalence",
                 name="prevalence_node",
+            ),
+            node(
+                func=nutrition_by_obesity,
+                inputs="prm_cardiometabolic",
+                outputs="rpt_nutrition_by_obesity",
+                name="nutrition_by_obesity_node",
             ),
             node(
                 func=state_obesity,

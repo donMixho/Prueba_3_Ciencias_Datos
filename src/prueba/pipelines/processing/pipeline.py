@@ -15,6 +15,7 @@ def create_pipeline(**kwargs) -> Pipeline:
                 inputs=[
                     "raw_demographics",
                     "raw_body_measures",
+                    "raw_diet",
                     "raw_blood_pressure",
                     "raw_lab_glucose",
                     "raw_lab_hba1c",

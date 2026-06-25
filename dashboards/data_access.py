@@ -41,3 +41,7 @@ def summary() -> pd.DataFrame:
 
 def state_obesity() -> pd.DataFrame:
     return get("state-obesity?top=60", "state_obesity")
+
+
+def nutrition() -> pd.DataFrame:
+    return get("nutrition", "nutrition_by_obesity")

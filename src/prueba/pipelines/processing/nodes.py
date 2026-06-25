@@ -27,6 +27,7 @@ def _select(df: pd.DataFrame, cols: list[str], name: str) -> pd.DataFrame:
 def merge_clinical(
     demographics: pd.DataFrame,
     body_measures: pd.DataFrame,
+    diet: pd.DataFrame,
     blood_pressure: pd.DataFrame,
     glucose: pd.DataFrame,
     hba1c: pd.DataFrame,
@@ -44,6 +45,7 @@ def merge_clinical(
 
     parts = {
         "body_measures": _select(body_measures, columns["body_measures"], "body_measures"),
+        "diet": _select(diet, columns["diet"], "diet"),
         "blood_pressure": _select(blood_pressure, columns["blood_pressure"], "blood_pressure"),
         "glucose": _select(glucose, columns["glucose"], "glucose"),
         "hba1c": _select(hba1c, columns["hba1c"], "hba1c"),
@@ -85,6 +87,15 @@ def clean_clinical(merged: pd.DataFrame, validation: dict) -> pd.DataFrame:
         "LBDHDD": "cholesterol_hdl",
         "LBXTR": "triglycerides",
         "LBDLDL": "cholesterol_ldl",
+        # Dieta (totales diarios, P_DR1TOT)
+        "DR1TKCAL": "energy_kcal",
+        "DR1TSUGR": "sugar_g",
+        "DR1TSODI": "sodium_mg",
+        "DR1TTFAT": "fat_g",
+        "DR1TSFAT": "sat_fat_g",
+        "DR1TFIBE": "fiber_g",
+        "DR1TPROT": "protein_g",
+        "DR1TCARB": "carbs_g",
     }
     df = merged.rename(columns={k: v for k, v in rename.items() if k in merged.columns})
     df["sex"] = df["sex"].map({1: "Hombre", 2: "Mujer"}).astype("object")
@@ -116,9 +127,11 @@ def engineer_features(df: pd.DataFrame, thresholds: dict) -> pd.DataFrame:
     """Crea variables derivadas y banderas clínicas de riesgo."""
     df = df.copy()
 
-    # Presión arterial: media de lecturas válidas
-    sys_cols = [c for c in ["BPXSY1", "BPXSY2", "BPXSY3", "BPXSY4"] if c in df.columns]
-    dia_cols = [c for c in ["BPXDI1", "BPXDI2", "BPXDI3", "BPXDI4"] if c in df.columns]
+    # Presión arterial: media de lecturas válidas.
+    # Soporta tanto la medición manual (BPXSY*/BPXDI*) como la oscilométrica
+    # (BPXOSY*/BPXODI*) usada en el dataset Pre-Pandemic 2017-2020.
+    sys_cols = [c for c in df.columns if c.startswith(("BPXSY", "BPXOSY"))]
+    dia_cols = [c for c in df.columns if c.startswith(("BPXDI", "BPXODI"))]
     # diastólica 0 = inválida en NHANES
     df[dia_cols] = df[dia_cols].replace(0, np.nan)
     df["bp_systolic_mean"] = df[sys_cols].mean(axis=1, skipna=True)

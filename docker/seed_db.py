@@ -23,12 +23,13 @@ log = logging.getLogger("seed_db")
 RAW_DIR = Path(os.getenv("RAW_DIR", "data/01_raw/nhanes"))
 
 # archivo XPT -> (nombre de tabla, columnas a conservar)
+# Dataset Pre-Pandemic 2017-2020 (prefijo P_).
 TABLES = {
-    "GLU_J": ("lab_glucose", ["SEQN", "LBXGLU"]),
-    "GHB_J": ("lab_hba1c", ["SEQN", "LBXGH"]),
-    "TCHOL_J": ("lab_cholesterol_tc", ["SEQN", "LBXTC"]),
-    "HDL_J": ("lab_cholesterol_hdl", ["SEQN", "LBDHDD"]),
-    "TRIGLY_J": ("lab_triglycerides", ["SEQN", "LBXTR", "LBDLDL"]),
+    "P_GLU": ("lab_glucose", ["SEQN", "LBXGLU"]),
+    "P_GHB": ("lab_hba1c", ["SEQN", "LBXGH"]),
+    "P_TCHOL": ("lab_cholesterol_tc", ["SEQN", "LBXTC"]),
+    "P_HDL": ("lab_cholesterol_hdl", ["SEQN", "LBDHDD"]),
+    "P_TRIGLY": ("lab_triglycerides", ["SEQN", "LBXTR", "LBDLDL"]),
 }
 
 

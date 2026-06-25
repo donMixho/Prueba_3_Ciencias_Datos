@@ -57,6 +57,30 @@ def prevalence(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def nutrition_by_obesity(df: pd.DataFrame) -> pd.DataFrame:
+    """Consumo nutricional promedio por categoría de IMC (vista técnica/ejecutiva).
+
+    Cuenta la historia 'dieta → obesidad': cuánta energía, azúcar y sodio
+    consume cada grupo según su estado de peso.
+    """
+    df = _adults(df)
+    nutrients = ["energy_kcal", "sugar_g", "sodium_mg", "fat_g", "sat_fat_g", "fiber_g", "protein_g"]
+    nutrients = [n for n in nutrients if n in df.columns]
+    if not nutrients or "bmi_category" not in df.columns:
+        return pd.DataFrame()
+    order = ["Bajo peso", "Normal", "Sobrepeso", "Obesidad"]
+    out = (
+        df.groupby("bmi_category")[nutrients]
+        .mean()
+        .round(1)
+        .reindex([c for c in order if c in df["bmi_category"].unique()])
+        .reset_index()
+    )
+    counts = df.groupby("bmi_category")["SEQN"].count()
+    out["n"] = out["bmi_category"].map(counts).astype("Int64")
+    return out
+
+
 def state_obesity(cdc_api: pd.DataFrame) -> pd.DataFrame:
     """Normaliza el snapshot de la API CDC: obesidad por estado (vista ejecutiva)."""
     if cdc_api.empty:

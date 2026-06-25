@@ -95,3 +95,9 @@ def get_state_obesity(
     """Obesidad por estado (fuente API REST data.cdc.gov)."""
     df = _load("state_obesity").sort_values("obesity_pct", ascending=False).head(top)
     return df.to_dict(orient="records")
+
+
+@app.get("/nutrition", tags=["indicadores"])
+def get_nutrition() -> list[dict]:
+    """Consumo nutricional promedio (kcal, azúcar, sodio...) por categoría de IMC."""
+    return _load("nutrition_by_obesity").to_dict(orient="records")
