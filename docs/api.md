@@ -32,6 +32,13 @@ Obesidad por estado (fuente API CDC), ordenada de mayor a menor.
 |-----------|------|---------|-------|
 | `top` | int | 10 | 1–60 |
 
+### `GET /nutrition`
+Consumo nutricional promedio (energía, azúcar, sodio, grasas, fibra, proteína)
+por categoría de IMC. Conecta la dieta con el estado de peso.
+```json
+[ {"bmi_category": "Obesidad", "energy_kcal": 2108.3, "sugar_g": 104.9, "sodium_mg": 3460.7, "n": 3688} ]
+```
+
 ## Códigos de estado
 
 | Código | Significado |

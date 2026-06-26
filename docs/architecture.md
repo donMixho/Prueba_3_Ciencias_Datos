@@ -2,7 +2,7 @@
 
 ## Visión general
 
-Solución **end-to-end** de análisis de datos de salud (NHANES 2017-2018) que
+Solución **end-to-end** de análisis de datos de salud (NHANES Pre-Pandemic 2017-2020) que
 integra **tres fuentes de datos**, las procesa con un pipeline ETL y expone los
 resultados vía una API REST y un dashboard interactivo, todo orquestado con
 Docker.

@@ -40,3 +40,13 @@ def test_state_obesity_top_param():
     assert r.status_code in (200, 503)
     if r.status_code == 200:
         assert len(r.json()) <= 3
+
+
+def test_nutrition_endpoint():
+    r = client.get("/nutrition")
+    assert r.status_code in (200, 503)
+    if r.status_code == 200:
+        data = r.json()
+        assert isinstance(data, list)
+        if data:
+            assert "bmi_category" in data[0]

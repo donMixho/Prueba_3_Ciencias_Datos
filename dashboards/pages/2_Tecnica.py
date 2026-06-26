@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import plotly.express as px
 import streamlit as st
-from data_access import summary
+from data_access import nutrition, summary
 from theme import footer, page_header, section, setup_page, style_fig
 
 setup_page("Técnica", "🔬")
@@ -39,6 +39,25 @@ if metric:
     fig = px.bar(fdf, x="age_group", y=metric, color="sex", barmode="group")
     fig.update_layout(xaxis_title="", yaxis_title=labels.get(metric, metric), legend_title="Sexo")
     st.plotly_chart(style_fig(fig, height=420), use_container_width=True)
+
+# --- Nutrición por categoría de IMC (datos de dieta) ---
+section("Consumo nutricional por categoría de IMC")
+nut = nutrition()
+if not nut.empty:
+    nut_cols = {
+        "energy_kcal": "Energía (kcal)", "sugar_g": "Azúcar (g)",
+        "sodium_mg": "Sodio (mg)", "fat_g": "Grasa (g)",
+        "sat_fat_g": "Grasa sat. (g)", "fiber_g": "Fibra (g)", "protein_g": "Proteína (g)",
+    }
+    avail = [c for c in nut_cols if c in nut.columns]
+    nut_metric = st.selectbox("Nutriente", avail, format_func=lambda c: nut_cols.get(c, c))
+    fign = px.bar(nut, x="bmi_category", y=nut_metric, color="bmi_category")
+    fign.update_layout(xaxis_title="", yaxis_title=nut_cols.get(nut_metric, nut_metric),
+                       showlegend=False)
+    st.plotly_chart(style_fig(fign, height=360), use_container_width=True)
+    st.caption("Fuente: NHANES dieta (P_DR1TOT), recordatorio de 24 h del Día 1.")
+else:
+    st.info("Datos de nutrición no disponibles. Ejecuta `kedro run`.")
 
 # --- Tabla ---
 section("Tabla resumen")

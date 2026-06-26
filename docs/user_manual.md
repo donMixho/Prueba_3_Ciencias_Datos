@@ -36,5 +36,5 @@ Para equipos operativos. Permite:
 
 ## Preguntas frecuentes
 - **Veo todo vacío.** El pipeline aún no generó datos: ejecuta `kedro run`.
-- **¿Los datos son en tiempo real?** No; corresponden al ciclo NHANES 2017-2018
+- **¿Los datos son en tiempo real?** No; corresponden al dataset NHANES Pre-Pandemic 2017-2020
   más un snapshot de la API CDC tomado al ejecutar el pipeline.

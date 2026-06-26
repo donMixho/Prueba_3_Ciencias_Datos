@@ -23,15 +23,21 @@ import requests
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 log = logging.getLogger("download_nhanes")
 
-# Patrón de URL pública de CDC NHANES (ciclo 2017-2018 -> sufijo _J, carpeta 2017)
+# Patrón de URL pública de CDC NHANES.
+# Usamos el dataset PRE-PANDEMIC 2017-March 2020 (prefijo P_), que combina los
+# ciclos 2017-2018 y 2019-2020. El ciclo 2019-2020 NO se publicó por separado
+# debido a la interrupción por COVID-19, por lo que este es el modo oficial de
+# incluir datos de 2019-2020. La carpeta sigue siendo 2017.
 BASE_URL = "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/{cycle}/DataFiles/{name}.xpt"
 
-# Archivos a descargar agrupados por componente (sufijo _J = ciclo 2017-2018)
+# Archivos Pre-Pandemic (prefijo P_) agrupados por componente.
+# Nota: la presión arterial pasó a medición oscilométrica (P_BPXO).
 FILES: dict[str, list[str]] = {
-    "demographics": ["DEMO_J"],
-    "examination": ["BMX_J", "BPX_J"],
-    "laboratory": ["GLU_J", "GHB_J", "TCHOL_J", "HDL_J", "TRIGLY_J"],
-    "questionnaire": ["DIQ_J", "BPQ_J", "SMQ_J", "PAQ_J", "MCQ_J"],
+    "demographics": ["P_DEMO"],
+    "dietary": ["P_DR1TOT"],
+    "examination": ["P_BMX", "P_BPXO"],
+    "laboratory": ["P_GLU", "P_GHB", "P_TCHOL", "P_HDL", "P_TRIGLY"],
+    "questionnaire": ["P_DIQ", "P_BPQ", "P_SMQ", "P_PAQ", "P_MCQ"],
 }
 
 

@@ -14,31 +14,35 @@ _csv: &csv
 
 raw_demographics:
   <<: *csv
-  filepath: data/01_raw/nhanes_csv/DEMO_J.csv
+  filepath: data/01_raw/nhanes_csv/P_DEMO.csv
 
 raw_body_measures:
   <<: *csv
-  filepath: data/01_raw/nhanes_csv/BMX_J.csv
+  filepath: data/01_raw/nhanes_csv/P_BMX.csv
+
+raw_diet:
+  <<: *csv
+  filepath: data/01_raw/nhanes_csv/P_DR1TOT.csv
 
 raw_blood_pressure:
   <<: *csv
-  filepath: data/01_raw/nhanes_csv/BPX_J.csv
+  filepath: data/01_raw/nhanes_csv/P_BPXO.csv
 
 raw_diabetes_q:
   <<: *csv
-  filepath: data/01_raw/nhanes_csv/DIQ_J.csv
+  filepath: data/01_raw/nhanes_csv/P_DIQ.csv
 
 raw_bloodpressure_q:
   <<: *csv
-  filepath: data/01_raw/nhanes_csv/BPQ_J.csv
+  filepath: data/01_raw/nhanes_csv/P_BPQ.csv
 
 raw_smoking_q:
   <<: *csv
-  filepath: data/01_raw/nhanes_csv/SMQ_J.csv
+  filepath: data/01_raw/nhanes_csv/P_SMQ.csv
 
 raw_activity_q:
   <<: *csv
-  filepath: data/01_raw/nhanes_csv/PAQ_J.csv
+  filepath: data/01_raw/nhanes_csv/P_PAQ.csv
 
 # ---------------------------------------------------------------------------
 # FUENTE 2 — Base de datos SQL (Postgres). Tablas de laboratorio.
@@ -99,3 +103,7 @@ rpt_prevalence:
 rpt_state_obesity:
   type: pandas.ParquetDataset
   filepath: data/08_reporting/state_obesity.parquet
+
+rpt_nutrition_by_obesity:
+  type: pandas.ParquetDataset
+  filepath: data/08_reporting/nutrition_by_obesity.parquet

@@ -18,11 +18,13 @@
 ---
 
 ## Slide 2 — El problema y los datos (1 min)
-**Mostrar:** logo CDC/NHANES, los números (9.254 personas, 13 archivos usados, 3 fuentes).
+**Mostrar:** logo CDC/NHANES, los números (15.560 personas, 12 archivos usados, 3 fuentes).
 
-> "Usamos datos reales de la encuesta de salud NHANES 2017-2018 del CDC de EE.UU.
+> "Usamos datos reales de la encuesta de salud NHANES **Pre-Pandemic 2017-2020**
+> del CDC de EE.UU. (un detalle interesante: el ciclo 2019-2020 no se publicó solo
+> por el COVID, así que el CDC lo combinó con el 2017-2018 en este dataset).
 > El objetivo: medir factores de riesgo cardiometabólico —obesidad, hipertensión
-> y diabetes— en la población adulta. Trabajamos con más de 9.000 personas
+> y diabetes— en la población adulta. Trabajamos con más de 15.000 personas
 > integradas desde tres tipos de fuente distintos."
 
 ---
