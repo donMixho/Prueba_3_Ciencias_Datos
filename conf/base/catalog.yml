@@ -90,6 +90,28 @@ prm_cardiometabolic:
   filepath: data/03_primary/cardiometabolic.parquet
 
 # ---------------------------------------------------------------------------
+# CAPA DE MODELOS — artefacto de ML (entrenado en el pipeline de processing)
+# ---------------------------------------------------------------------------
+risk_model:
+  type: pickle.PickleDataset
+  filepath: data/06_models/risk_model.pkl
+  backend: pickle
+
+bioage_model:
+  type: pickle.PickleDataset
+  filepath: data/06_models/bioage_model.pkl
+  backend: pickle
+
+# Predicciones de los modelos persistidas en la BD SQL (fuente 2).
+model_predictions:
+  type: pandas.SQLTableDataset
+  credentials: db_lab
+  table_name: model_predictions
+  save_args:
+    if_exists: replace
+    index: false
+
+# ---------------------------------------------------------------------------
 # CAPA DE REPORTING (consumida por la API y el dashboard)
 # ---------------------------------------------------------------------------
 rpt_summary_by_demographics:

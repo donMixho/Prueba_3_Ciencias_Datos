@@ -102,6 +102,46 @@ _CSS = f"""
     .footer {{ color:{MUTED}; font-size:.8rem; text-align:center;
         border-top:1px solid #E2E8F0; padding-top:1rem; margin-top:2.5rem; }}
 
+    /* --- Botones interactivos (hover/active) --- */
+    .stButton > button, .stDownloadButton > button {{
+        transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+        border-radius: 10px; font-weight: 600;
+    }}
+    .stButton > button:hover, .stDownloadButton > button:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(14,116,144,.30);
+        filter: brightness(1.06);
+    }}
+    .stButton > button:active, .stDownloadButton > button:active {{
+        transform: translateY(0); box-shadow: 0 2px 6px rgba(14,116,144,.25);
+    }}
+
+    /* --- Tarjetas de navegación con elevación al pasar el mouse --- */
+    .nav-card {{
+        background:#fff; border:1px solid #E2E8F0; border-radius:14px 14px 0 0;
+        border-bottom:none; padding:1.3rem 1.3rem .8rem; height:100%;
+        box-shadow:0 1px 3px rgba(15,23,42,.06);
+        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    }}
+    .nav-card:hover {{
+        transform: translateY(-5px);
+        box-shadow: 0 14px 30px rgba(14,116,144,.18);
+        border-color: {PRIMARY};
+    }}
+
+    /* --- Enlaces de página con estilo botón que se rellena al hover --- */
+    [data-testid="stPageLink-NavLink"] {{
+        border:1px solid #E2E8F0; border-top:none; border-radius:0 0 14px 14px;
+        padding:.55rem .9rem; font-weight:600; color:{PRIMARY};
+        transition: background .2s ease, color .2s ease, transform .15s ease, box-shadow .2s ease;
+    }}
+    [data-testid="stPageLink-NavLink"]:hover {{
+        background: linear-gradient(120deg, {PRIMARY_DARK}, {PRIMARY});
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(14,116,144,.25);
+    }}
+    [data-testid="stPageLink-NavLink"]:hover * {{ color:#fff !important; fill:#fff !important; }}
+
     /* Tablas más limpias */
     [data-testid="stDataFrame"] {{ border:1px solid #E2E8F0; border-radius:12px; }}
 
@@ -130,10 +170,10 @@ def _sidebar_brand() -> None:
             f"<div style='color:{MUTED};font-size:.8rem;margin-bottom:.5rem'>Riesgo Cardiometabólico</div>",
             unsafe_allow_html=True,
         )
-        st.caption("Datos: CDC · NHANES 2017-2018")
+        st.caption("Datos: CDC · NHANES 2017-2020")
 
 
-def page_header(title: str, subtitle: str = "", badge: str = "NHANES 2017-2018 · CDC") -> None:
+def page_header(title: str, subtitle: str = "", badge: str = "NHANES 2017-2020 · CDC") -> None:
     st.markdown(
         f"""<div class="hero">
             <h1>{title}</h1>
@@ -164,6 +204,6 @@ def footer() -> None:
     st.markdown(
         '<div class="footer">Plataforma de Análisis Cardiometabólico · '
         "ETL (Kedro) → API (FastAPI) → Dashboard (Streamlit) · "
-        "Fuente: CDC NHANES 2017-2018</div>",
+        "Fuente: CDC NHANES 2017-2020</div>",
         unsafe_allow_html=True,
     )

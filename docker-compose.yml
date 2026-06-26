@@ -47,6 +47,7 @@ services:
       DB_URL: postgresql+psycopg2://${POSTGRES_USER:-nhanes}:${POSTGRES_PASSWORD:-nhanes}@postgres:5432/${POSTGRES_DB:-nhanes}
     volumes:
       - ./data:/app/data
+      - ./conf/local:/app/conf/local
     depends_on:
       db-seed:
         condition: service_completed_successfully

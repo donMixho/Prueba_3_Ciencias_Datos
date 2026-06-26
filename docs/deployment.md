@@ -68,3 +68,14 @@ kedro run --node merge_clinical_node
 | Dashboard vacío | Reporting no generado | Verificar `data/08_reporting/*.parquet` |
 | Error de conexión SQL | Postgres no listo / credenciales | Revisar `.env` y `docker compose logs postgres` |
 | API CDC sin datos | Filtro `where` muy estricto | Ajustar `cdc_api.where` en `parameters.yml` |
+
+## Configuración de credenciales locales
+
+Crear el archivo `conf/local/credentials.yml` con el siguiente contenido:
+
+```yaml
+db_lab:
+  con: postgresql+psycopg2://nhanes:nhanes@postgres:5432/nhanes
+```
+
+> Este archivo está en `.gitignore` y no se versiona por seguridad.
