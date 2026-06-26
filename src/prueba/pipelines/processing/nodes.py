@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import logging
+import os
+import pickle
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
+from sqlalchemy import create_engine
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import (
@@ -368,3 +372,104 @@ def train_bioage_model(df: pd.DataFrame, model_params: dict) -> Pipeline:
         log.warning("No se pudieron calcular las métricas de edad biológica: %s", exc)
 
     return model
+
+
+def build_predictions(
+    df: pd.DataFrame,
+    risk_model: Pipeline,
+    bioage_model: Pipeline,
+    risk_params: dict,
+    bioage_params: dict,
+) -> pd.DataFrame:
+    """Aplica ambos modelos a cada persona y arma la tabla de predicciones.
+
+    Genera un DataFrame (una fila por ``SEQN``) con la predicción del modelo de
+    riesgo (clase y probabilidad) y la del modelo de edad biológica (solo para
+    adultos), incluyendo el *age gap*. El resultado se persiste en la base de
+    datos SQL del proyecto a través del catálogo (``model_predictions``).
+
+    Args:
+        df: DataFrame primario ``prm_cardiometabolic``.
+        risk_model: Pipeline del modelo de riesgo entrenado.
+        bioage_model: Pipeline del modelo de edad biológica entrenado.
+        risk_params: parámetros del modelo de riesgo (usa ``features``).
+        bioage_params: parámetros del modelo de edad biológica (``features``, ``min_age``).
+
+    Returns:
+        DataFrame con las predicciones por persona.
+    """
+    risk_features = risk_params["features"]
+    bio_features = bioage_params["features"]
+    min_age = bioage_params.get("min_age", 18)
+
+    out = pd.DataFrame({"SEQN": df["SEQN"].astype("int64"), "age": df["age"]})
+
+    # --- Modelo 1: riesgo cardiometabólico ---
+    x_risk = df[risk_features].apply(pd.to_numeric, errors="coerce")
+    out["high_risk_proba"] = risk_model.predict_proba(x_risk)[:, 1].round(4)
+    out["high_risk"] = (out["high_risk_proba"] >= 0.5).astype("int64")
+
+    # --- Modelo 2: edad biológica (solo adultos; en menores queda nulo) ---
+    x_bio = df[bio_features].apply(pd.to_numeric, errors="coerce")
+    bio_pred = np.round(bioage_model.predict(x_bio), 1)
+    is_adult = df["age"] >= min_age
+    out["biological_age"] = np.where(is_adult, bio_pred, np.nan)
+    out["age_gap"] = (out["biological_age"] - out["age"]).round(1)
+
+    log.info(
+        "Predicciones generadas: %d personas | alto riesgo=%d | con edad biológica=%d",
+        len(out),
+        int(out["high_risk"].sum()),
+        int(out["biological_age"].notna().sum()),
+    )
+    return out
+
+
+def store_models_in_db(
+    risk_model: Pipeline, bioage_model: Pipeline, db_params: dict
+) -> dict:
+    """Guarda los modelos serializados (pickle) como BLOB en la base de datos.
+
+    Crea/reemplaza la tabla ``ml_models`` con una fila por modelo (nombre, fecha
+    de entrenamiento, nº de features y el binario pickle). Permite versionar y
+    recuperar el artefacto desde la propia base de datos del proyecto.
+
+    Args:
+        risk_model: Pipeline del modelo de riesgo entrenado.
+        bioage_model: Pipeline del modelo de edad biológica entrenado.
+        db_params: dict con la clave ``url`` (cadena de conexión SQLAlchemy).
+
+    Returns:
+        Resumen con los modelos almacenados (consumido como reporte en memoria).
+
+    Raises:
+        ValueError: si no se proporciona la URL de conexión a la base de datos.
+    """
+    # La variable de entorno DB_URL (Postgres en Docker) tiene prioridad.
+    url = os.getenv("DB_URL") or db_params.get("url")
+    if not url:
+        raise ValueError("Falta la URL de la base de datos (DB_URL o params:db.url).")
+
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    rows = []
+    for name, model in (("risk_model", risk_model), ("bioage_model", bioage_model)):
+        n_features = getattr(model.named_steps["imputer"], "n_features_in_", None)
+        rows.append(
+            {
+                "name": name,
+                "model_type": type(model.steps[-1][1]).__name__,
+                "trained_at": now,
+                "n_features": int(n_features) if n_features is not None else None,
+                "model_blob": pickle.dumps(model),
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    try:
+        engine = create_engine(url)
+        df.to_sql("ml_models", engine, if_exists="replace", index=False)
+        log.info("Modelos guardados en la BD (tabla 'ml_models'): %s", [r["name"] for r in rows])
+    except Exception as exc:  # noqa: BLE001 - el guardado en BD no debe tumbar el pipeline
+        log.warning("No se pudieron guardar los modelos en la BD: %s", exc)
+
+    return {"stored_models": [r["name"] for r in rows], "trained_at": now}

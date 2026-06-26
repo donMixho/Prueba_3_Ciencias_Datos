@@ -71,6 +71,12 @@ bioage_model:
   n_estimators: 300
   max_depth: 12
 
+# --- Conexión a la base de datos para guardar modelos ---
+# Local: SQLite (default abajo). En Docker, la variable de entorno DB_URL
+# (Postgres) tiene prioridad sobre este valor (ver store_models_in_db).
+db:
+  url: sqlite:///data/01_raw/lab.db
+
 # --- Fuente 3: API REST (data.cdc.gov Socrata) ---
 cdc_api:
   base_url: "https://data.cdc.gov/resource"
