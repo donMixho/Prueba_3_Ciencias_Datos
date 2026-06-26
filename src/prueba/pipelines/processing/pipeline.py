@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from kedro.pipeline import Pipeline, node, pipeline
 
-from .nodes import clean_clinical, engineer_features, merge_clinical
+from .nodes import (
+    clean_clinical,
+    engineer_features,
+    merge_clinical,
+    train_bioage_model,
+    train_risk_model,
+)
 
 
 def create_pipeline(**kwargs) -> Pipeline:
@@ -41,6 +47,18 @@ def create_pipeline(**kwargs) -> Pipeline:
                 inputs=["clinical_clean", "params:thresholds"],
                 outputs="prm_cardiometabolic",
                 name="engineer_features_node",
+            ),
+            node(
+                func=train_risk_model,
+                inputs=["prm_cardiometabolic", "params:model"],
+                outputs="risk_model",
+                name="train_risk_model_node",
+            ),
+            node(
+                func=train_bioage_model,
+                inputs=["prm_cardiometabolic", "params:bioage_model"],
+                outputs="bioage_model",
+                name="train_bioage_model_node",
             ),
         ]
     )

@@ -6,6 +6,17 @@ import logging
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import (
+    accuracy_score,
+    mean_absolute_error,
+    r2_score,
+    roc_auc_score,
+    root_mean_squared_error,
+)
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
 
 from prueba.utils.validation import (
     replace_missing_codes,
@@ -168,3 +179,192 @@ def engineer_features(df: pd.DataFrame, thresholds: dict) -> pd.DataFrame:
 
     log.info("Features generadas: %d filas, %d columnas", len(df), df.shape[1])
     return df
+
+
+def train_risk_model(df: pd.DataFrame, model_params: dict) -> Pipeline:
+    """Entrena un clasificador binario de alto riesgo cardiometabólico.
+
+    Define la variable objetivo como ``cardiometabolic_risk >= target_threshold``
+    (1 = alto riesgo, 0 = bajo riesgo) y entrena un ``RandomForestClassifier``
+    sobre un subconjunto de variables clínicas. Las variables con valores
+    ausentes (frecuentes en NHANES, p. ej. glucosa o HbA1c medidas solo en
+    ayunas) se imputan por mediana dentro de un ``Pipeline`` de scikit-learn,
+    de modo que el artefacto resultante pueda predecir aunque falte algún dato.
+
+    Las métricas (accuracy y AUC) se calculan sobre un conjunto de prueba
+    retenido (``test_size``) y se registran en el log.
+
+    Args:
+        df: DataFrame primario ``prm_cardiometabolic`` con las features y la
+            columna objetivo ``cardiometabolic_risk``.
+        model_params: parámetros del modelo. Claves esperadas: ``features``,
+            ``target_col``, ``target_threshold``, ``test_size``,
+            ``random_state``, ``n_estimators``, ``max_depth``.
+
+    Returns:
+        El ``Pipeline`` (imputación + RandomForest) ya entrenado, listo para
+        serializarse como artefacto y ser consumido por la API.
+
+    Raises:
+        ValueError: si faltan columnas requeridas o si la variable objetivo
+            tiene una sola clase (no se puede entrenar un clasificador binario).
+    """
+    features: list[str] = model_params["features"]
+    target_col: str = model_params.get("target_col", "cardiometabolic_risk")
+    threshold: int = model_params.get("target_threshold", 2)
+
+    missing = [c for c in [*features, target_col] if c not in df.columns]
+    if missing:
+        raise ValueError(f"Faltan columnas para entrenar el modelo: {missing}")
+
+    # X: features numéricas (coerciona texto/categorías a NaN para imputar).
+    x = df[features].apply(pd.to_numeric, errors="coerce")
+    # y: alto riesgo (1) si el score compuesto supera el umbral.
+    y = (df[target_col] >= threshold).astype(int)
+
+    if y.nunique() < 2:
+        raise ValueError(
+            "La variable objetivo tiene una sola clase; no se puede entrenar "
+            "un clasificador binario."
+        )
+
+    log.info(
+        "Entrenando modelo de riesgo | muestras=%d | alto_riesgo=%.1f%% | features=%s",
+        len(y),
+        100 * y.mean(),
+        features,
+    )
+
+    x_train, x_test, y_train, y_test = train_test_split(
+        x,
+        y,
+        test_size=model_params.get("test_size", 0.2),
+        random_state=model_params.get("random_state", 42),
+        stratify=y,
+    )
+
+    model = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+            (
+                "clf",
+                RandomForestClassifier(
+                    n_estimators=model_params.get("n_estimators", 200),
+                    max_depth=model_params.get("max_depth"),
+                    class_weight="balanced",
+                    random_state=model_params.get("random_state", 42),
+                    n_jobs=-1,
+                ),
+            ),
+        ]
+    )
+    model.fit(x_train, y_train)
+
+    # Métricas sobre el conjunto de prueba retenido.
+    try:
+        y_pred = model.predict(x_test)
+        y_proba = model.predict_proba(x_test)[:, 1]
+        accuracy = accuracy_score(y_test, y_pred)
+        auc = roc_auc_score(y_test, y_proba)
+        log.info(
+            "Modelo entrenado | accuracy=%.3f | AUC=%.3f | test=%d muestras",
+            accuracy,
+            auc,
+            len(y_test),
+        )
+    except Exception as exc:  # noqa: BLE001 - las métricas no deben tumbar el pipeline
+        log.warning("No se pudieron calcular las métricas del modelo: %s", exc)
+
+    return model
+
+
+def train_bioage_model(df: pd.DataFrame, model_params: dict) -> Pipeline:
+    """Entrena un regresor de EDAD BIOLÓGICA como proxy de longevidad.
+
+    Predice la edad cronológica (``age``) a partir de biomarcadores
+    cardiometabólicos (``features``), **sin** usar la edad como entrada. La
+    diferencia entre la edad biológica estimada y la edad real (*age gap*) es un
+    indicador de envejecimiento acelerado (proxy de menor longevidad) o
+    saludable (mayor longevidad), inspirado en enfoques tipo *PhenoAge*.
+
+    Solo se usan adultos (``min_age``) con los biomarcadores mínimos presentes
+    (``required_features``); el resto de nulos se imputa por mediana dentro de
+    un ``Pipeline`` de scikit-learn. Las métricas (MAE, RMSE, R²) se calculan
+    sobre un conjunto de prueba retenido y se registran en el log.
+
+    Args:
+        df: DataFrame primario ``prm_cardiometabolic`` con biomarcadores y edad.
+        model_params: parámetros del modelo. Claves esperadas: ``features``,
+            ``target_col``, ``min_age``, ``required_features``, ``test_size``,
+            ``random_state``, ``n_estimators``, ``max_depth``.
+
+    Returns:
+        El ``Pipeline`` (imputación + RandomForestRegressor) ya entrenado.
+
+    Raises:
+        ValueError: si faltan columnas requeridas o no quedan filas usables.
+    """
+    features: list[str] = model_params["features"]
+    target_col: str = model_params.get("target_col", "age")
+    min_age: int = model_params.get("min_age", 18)
+    required: list[str] = model_params.get("required_features", ["bmi", "bp_systolic_mean"])
+
+    missing = [c for c in [*features, target_col] if c not in df.columns]
+    if missing:
+        raise ValueError(f"Faltan columnas para el modelo de edad biológica: {missing}")
+
+    # Solo adultos con los biomarcadores mínimos (evita ruido de menores/vacíos).
+    data = df[df[target_col] >= min_age].dropna(subset=required)
+    if data.empty:
+        raise ValueError("No quedan filas usables tras filtrar adultos y nulos.")
+
+    x = data[features].apply(pd.to_numeric, errors="coerce")
+    y = data[target_col]
+
+    log.info(
+        "Entrenando modelo de edad biológica | muestras=%d | edad media=%.1f | features=%s",
+        len(y),
+        y.mean(),
+        features,
+    )
+
+    x_train, x_test, y_train, y_test = train_test_split(
+        x,
+        y,
+        test_size=model_params.get("test_size", 0.2),
+        random_state=model_params.get("random_state", 42),
+    )
+
+    model = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+            (
+                "reg",
+                RandomForestRegressor(
+                    n_estimators=model_params.get("n_estimators", 300),
+                    max_depth=model_params.get("max_depth", 12),
+                    random_state=model_params.get("random_state", 42),
+                    n_jobs=-1,
+                ),
+            ),
+        ]
+    )
+    model.fit(x_train, y_train)
+
+    # Métricas sobre el conjunto de prueba retenido.
+    try:
+        y_pred = model.predict(x_test)
+        mae = mean_absolute_error(y_test, y_pred)
+        rmse = root_mean_squared_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
+        log.info(
+            "Edad biológica entrenada | MAE=%.1f años | RMSE=%.1f | R2=%.3f | test=%d",
+            mae,
+            rmse,
+            r2,
+            len(y_test),
+        )
+    except Exception as exc:  # noqa: BLE001 - las métricas no deben tumbar el pipeline
+        log.warning("No se pudieron calcular las métricas de edad biológica: %s", exc)
+
+    return model

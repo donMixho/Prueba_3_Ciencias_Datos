@@ -33,6 +33,44 @@ thresholds:
     - {label: "45-64", min: 45, max: 64}
     - {label: "65+",   min: 65, max: 150}
 
+# --- Modelo de ML: clasificación binaria de alto riesgo cardiometabólico ---
+model:
+  target_col: cardiometabolic_risk
+  target_threshold: 2   # score >= 2 -> alto riesgo (1); de lo contrario bajo (0)
+  features:
+    - bmi
+    - bp_systolic_mean
+    - bp_diastolic_mean
+    - glucose_mgdl
+    - hba1c_pct
+    - age
+  test_size: 0.2
+  random_state: 42
+  n_estimators: 200
+  max_depth: 8
+
+# --- Modelo de ML: edad biológica (proxy de longevidad) ---
+bioage_model:
+  target_col: age
+  min_age: 18                 # solo adultos
+  required_features:          # biomarcadores mínimos exigidos por fila
+    - bmi
+    - bp_systolic_mean
+  features:
+    - bp_systolic_mean
+    - bp_diastolic_mean
+    - hba1c_pct
+    - glucose_mgdl
+    - cholesterol_total
+    - cholesterol_hdl
+    - triglycerides
+    - bmi
+    - waist_cm
+  test_size: 0.2
+  random_state: 42
+  n_estimators: 300
+  max_depth: 12
+
 # --- Fuente 3: API REST (data.cdc.gov Socrata) ---
 cdc_api:
   base_url: "https://data.cdc.gov/resource"
