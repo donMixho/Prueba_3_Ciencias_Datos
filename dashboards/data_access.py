@@ -18,6 +18,9 @@ API_URL = os.getenv("API_URL", "http://localhost:8000")
 REPORTING_DIR = Path(os.getenv("REPORTING_DIR", "data/08_reporting"))
 MODEL_PATH = Path(os.getenv("MODEL_PATH", "data/06_models/risk_model.pkl"))
 BIOAGE_MODEL_PATH = Path(os.getenv("BIOAGE_MODEL_PATH", "data/06_models/bioage_model.pkl"))
+CLUSTERING_MODEL_PATH = Path(
+    os.getenv("CLUSTERING_MODEL_PATH", "data/06_models/clustering_model.pkl")
+)
 
 # Orden de features esperado por el modelo de riesgo (coincide con parameters.yml).
 MODEL_FEATURES = [
@@ -41,6 +44,67 @@ BIOAGE_FEATURES = [
     "bmi",
     "waist_cm",
 ]
+
+# Orden de features del modelo de clustering (coincide con parameters.yml).
+CLUSTER_FEATURES = [
+    "bmi",
+    "age",
+    "bp_systolic_mean",
+    "bp_diastolic_mean",
+    "hba1c_pct",
+    "glucose_mgdl",
+    "cholesterol_total",
+    "waist_cm",
+]
+
+# Etiquetas legibles de las features para la tabla resumen de perfiles.
+CLUSTER_FEATURE_LABELS = {
+    "bmi": "IMC",
+    "age": "Edad",
+    "bp_systolic_mean": "PA sistólica",
+    "bp_diastolic_mean": "PA diastólica",
+    "hba1c_pct": "HbA1c (%)",
+    "glucose_mgdl": "Glucosa",
+    "cholesterol_total": "Colesterol",
+    "waist_cm": "Cintura",
+}
+
+# Interpretación clínica de los 4 perfiles de salud (obtenida del pipeline de
+# segmentación). ``share`` es el peso poblacional de cada cluster.
+CLUSTER_PROFILES = {
+    0: {
+        "profile": "Adultos con obesidad, metabólicamente estables",
+        "description": (
+            "Adultos con IMC elevado pero presión arterial, glucosa y lípidos en "
+            "rangos relativamente controlados. Riesgo moderado a vigilar."
+        ),
+        "share": 34.7,
+    },
+    1: {
+        "profile": "Diabéticos descompensados",
+        "description": (
+            "Grupo crítico con HbA1c y glucosa muy elevadas: descompensación "
+            "metabólica que requiere atención clínica prioritaria."
+        ),
+        "share": 2.3,
+    },
+    2: {
+        "profile": "Jóvenes/menores sanos",
+        "description": (
+            "Población joven con biomarcadores en rangos saludables y bajo riesgo "
+            "cardiometabólico."
+        ),
+        "share": 46.9,
+    },
+    3: {
+        "profile": "Adultos hipertensos con dislipidemia",
+        "description": (
+            "Adultos con presión arterial elevada y perfil lipídico alterado "
+            "(colesterol/triglicéridos); riesgo cardiovascular a controlar."
+        ),
+        "share": 16.1,
+    },
+}
 
 
 @st.cache_data(ttl=300)
@@ -89,6 +153,32 @@ def _load_bioage_model():
         with BIOAGE_MODEL_PATH.open("rb") as fh:
             return pickle.load(fh)
     return None
+
+
+@st.cache_resource
+def _load_clustering_model():
+    """Carga (con caché) el modelo de clustering desde el artefacto local."""
+    if CLUSTERING_MODEL_PATH.exists():
+        with CLUSTERING_MODEL_PATH.open("rb") as fh:
+            return pickle.load(fh)
+    return None
+
+
+def _cluster_result(cluster: int) -> dict:
+    """Enriquece un número de cluster con su perfil clínico y descripción.
+
+    Args:
+        cluster: etiqueta del cluster asignada por el modelo (0-3).
+
+    Returns:
+        Dict con ``cluster``, ``profile`` y ``description``.
+    """
+    info = CLUSTER_PROFILES.get(cluster, {})
+    return {
+        "cluster": cluster,
+        "profile": info.get("profile", f"Cluster {cluster}"),
+        "description": info.get("description", ""),
+    }
 
 
 def predict(features: dict) -> dict | None:
@@ -151,3 +241,61 @@ def predict_bioage(features: dict) -> dict | None:
             "age_gap": gap,
             "interpretation": "",
         }
+
+
+def predict_cluster(payload: dict) -> dict | None:
+    """Asigna a una persona su perfil de salud (clustering no supervisado).
+
+    Intenta primero la API REST (``POST /predict-cluster``). Si no está
+    disponible, cae a cargar el modelo pickle local (``KMeans`` dentro de un
+    ``Pipeline`` de imputación + estandarización) y etiquetar en el proceso
+    (modo offline).
+
+    Args:
+        payload: diccionario con las claves de ``CLUSTER_FEATURES``.
+
+    Returns:
+        Dict con ``cluster`` (int 0-3), ``profile`` (nombre del perfil) y
+        ``description``, o ``None`` si no hay API ni modelo local disponibles.
+    """
+    try:
+        resp = requests.post(f"{API_URL}/predict-cluster", json=payload, timeout=5)
+        resp.raise_for_status()
+        return _cluster_result(int(resp.json()["cluster"]))
+    except Exception:  # noqa: BLE001 - fallback intencional al modelo local
+        model = _load_clustering_model()
+        if model is None:
+            return None
+        row = {f: payload.get(f) for f in CLUSTER_FEATURES}
+        x = pd.DataFrame([row], columns=CLUSTER_FEATURES).astype(float)
+        cluster = int(model.predict(x)[0])
+        return _cluster_result(cluster)
+
+
+def cluster_summary() -> pd.DataFrame | None:
+    """Construye la tabla resumen de los 4 perfiles de salud.
+
+    Recupera los centroides del ``KMeans`` entrenado y los devuelve a la escala
+    clínica original deshaciendo la estandarización del ``StandardScaler`` del
+    pipeline, de modo que cada fila describe el valor medio real de las features
+    en ese cluster. Se anexan el nombre del perfil y su peso poblacional.
+
+    Returns:
+        DataFrame indexado por número de cluster con el perfil, el porcentaje de
+        población y las medias clínicas de cada feature; o ``None`` si el
+        artefacto del modelo no está disponible.
+    """
+    model = _load_clustering_model()
+    if model is None:
+        return None
+
+    scaler = model.named_steps["scaler"]
+    kmeans = model.named_steps["kmeans"]
+    centroides = scaler.inverse_transform(kmeans.cluster_centers_)
+
+    tabla = pd.DataFrame(centroides, columns=CLUSTER_FEATURES).round(1)
+    tabla = tabla.rename(columns=CLUSTER_FEATURE_LABELS)
+    tabla.insert(0, "Perfil", [CLUSTER_PROFILES[i]["profile"] for i in tabla.index])
+    tabla.insert(1, "% población", [CLUSTER_PROFILES[i]["share"] for i in tabla.index])
+    tabla.index.name = "Cluster"
+    return tabla
