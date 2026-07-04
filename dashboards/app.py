@@ -9,6 +9,7 @@ Las vistas diferenciadas por audiencia están en dashboards/pages/:
     3_Operativa.py     — tabla detallada y descarga de datos
     4_Prediccion.py    — predicción de riesgo con el modelo de ML
     5_EdadBiologica.py — edad biológica (proxy de longevidad) con ML
+    6_Clustering.py    — segmentación en perfiles de salud (clustering)
 """
 
 from __future__ import annotations
@@ -52,9 +53,10 @@ render_card(r3, "🛠️", "Operativa", "Equipos operativos", "Tablas detalladas
 
 st.markdown("")
 section("Modelos de Machine Learning")
-m1, m2 = st.columns(2)
+m1, m2, m3 = st.columns(3)
 render_card(m1, "🤖", "Predicción de Riesgo", "Clasificación", "Probabilidad de alto riesgo cardiometabólico de una persona.", "pages/4_Prediccion.py")
 render_card(m2, "🧬", "Edad Biológica", "Regresión · longevidad", "Estima cuántos años aparenta tu cuerpo (age gap).", "pages/5_EdadBiologica.py")
+render_card(m3, "🧩", "Perfiles de Salud", "Clustering · no supervisado", "Agrupa a una persona en uno de los 4 perfiles de salud (KMeans).", "pages/6_Clustering.py")
 
 st.markdown("")
 st.info("Abre una vista con los botones o desde el menú lateral. Si los gráficos salen vacíos, ejecuta el pipeline con `kedro run`.")
