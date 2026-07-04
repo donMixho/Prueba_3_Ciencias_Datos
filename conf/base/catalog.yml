@@ -102,6 +102,11 @@ bioage_model:
   filepath: data/06_models/bioage_model.pkl
   backend: pickle
 
+clustering_model:
+  type: pickle.PickleDataset
+  filepath: data/06_models/clustering_model.pkl
+  backend: pickle
+
 # Predicciones de los modelos persistidas en la BD SQL (fuente 2).
 model_predictions:
   type: pandas.SQLTableDataset

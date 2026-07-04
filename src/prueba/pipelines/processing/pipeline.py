@@ -11,6 +11,7 @@ from .nodes import (
     merge_clinical,
     store_models_in_db,
     train_bioage_model,
+    train_clustering_model,
     train_risk_model,
 )
 
@@ -63,20 +64,33 @@ def create_pipeline(**kwargs) -> Pipeline:
                 name="train_bioage_model_node",
             ),
             node(
+                func=train_clustering_model,
+                inputs=["prm_cardiometabolic", "params:clustering_model"],
+                outputs="clustering_model",
+                name="train_clustering_model_node",
+            ),
+            node(
                 func=build_predictions,
                 inputs=[
                     "prm_cardiometabolic",
                     "risk_model",
                     "bioage_model",
+                    "clustering_model",
                     "params:model",
                     "params:bioage_model",
+                    "params:clustering_model",
                 ],
                 outputs="model_predictions",
                 name="build_predictions_node",
             ),
             node(
                 func=store_models_in_db,
-                inputs=["risk_model", "bioage_model", "params:db"],
+                inputs=[
+                    "risk_model",
+                    "bioage_model",
+                    "clustering_model",
+                    "params:db",
+                ],
                 outputs="store_models_report",
                 name="store_models_in_db_node",
             ),

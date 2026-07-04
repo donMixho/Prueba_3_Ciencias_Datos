@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine
+from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import (
@@ -21,6 +22,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 from prueba.utils.validation import (
     replace_missing_codes,
@@ -374,32 +376,116 @@ def train_bioage_model(df: pd.DataFrame, model_params: dict) -> Pipeline:
     return model
 
 
+def train_clustering_model(
+    df: pd.DataFrame,
+    clustering_params: dict,
+) -> Pipeline:
+    """Entrena un modelo KMeans para segmentar la población en perfiles de salud.
+
+    Aplica un aprendizaje **no supervisado** sobre un subconjunto de variables
+    cardiometabólicas (``features``) para agrupar a las personas en
+    ``n_clusters`` perfiles de salud. Las variables se imputan por mediana y se
+    estandarizan (``StandardScaler``) dentro de un ``Pipeline`` de scikit-learn
+    antes de ajustar el ``KMeans``, de modo que el artefacto resultante pueda
+    etiquetar a nuevas personas aunque falte algún dato y sin verse dominado por
+    las variables de mayor escala.
+
+    Se registran en el log el número de muestras, la inercia del modelo y el
+    tamaño de cada cluster.
+
+    Args:
+        df: DataFrame primario ``prm_cardiometabolic`` con las features.
+        clustering_params: parámetros del modelo. Claves esperadas: ``features``,
+            ``n_clusters``, ``random_state``.
+
+    Returns:
+        El ``Pipeline`` (imputación + estandarización + KMeans) ya entrenado,
+        listo para serializarse como artefacto y etiquetar perfiles de salud.
+
+    Raises:
+        ValueError: si faltan columnas requeridas para el clustering.
+    """
+    features: list[str] = clustering_params["features"]
+    n_clusters: int = clustering_params.get("n_clusters", 4)
+
+    missing = [c for c in features if c not in df.columns]
+    if missing:
+        raise ValueError(f"Faltan columnas para el modelo de clustering: {missing}")
+
+    # X: features numéricas (coerciona texto/categorías a NaN para imputar).
+    x = df[features].apply(pd.to_numeric, errors="coerce")
+
+    log.info(
+        "Entrenando modelo de clustering | muestras=%d | n_clusters=%d | features=%s",
+        len(x),
+        n_clusters,
+        features,
+    )
+
+    model = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            (
+                "kmeans",
+                KMeans(
+                    n_clusters=n_clusters,
+                    random_state=clustering_params.get("random_state", 42),
+                    n_init=10,
+                ),
+            ),
+        ]
+    )
+    model.fit(x)
+
+    # Métricas del clustering: inercia y tamaño de cada perfil de salud.
+    try:
+        kmeans = model.named_steps["kmeans"]
+        labels = model.predict(x)
+        sizes = pd.Series(labels).value_counts().sort_index().to_dict()
+        log.info(
+            "Clustering entrenado | inercia=%.1f | tamaños por cluster=%s",
+            kmeans.inertia_,
+            sizes,
+        )
+    except Exception as exc:  # noqa: BLE001 - las métricas no deben tumbar el pipeline
+        log.warning("No se pudieron calcular las métricas de clustering: %s", exc)
+
+    return model
+
+
 def build_predictions(
     df: pd.DataFrame,
     risk_model: Pipeline,
     bioage_model: Pipeline,
+    clustering_model: Pipeline,
     risk_params: dict,
     bioage_params: dict,
+    clustering_params: dict,
 ) -> pd.DataFrame:
-    """Aplica ambos modelos a cada persona y arma la tabla de predicciones.
+    """Aplica los tres modelos a cada persona y arma la tabla de predicciones.
 
     Genera un DataFrame (una fila por ``SEQN``) con la predicción del modelo de
-    riesgo (clase y probabilidad) y la del modelo de edad biológica (solo para
-    adultos), incluyendo el *age gap*. El resultado se persiste en la base de
-    datos SQL del proyecto a través del catálogo (``model_predictions``).
+    riesgo (clase y probabilidad), la del modelo de edad biológica (solo para
+    adultos, incluyendo el *age gap*) y la etiqueta de perfil de salud asignada
+    por el modelo de clustering. El resultado se persiste en la base de datos
+    SQL del proyecto a través del catálogo (``model_predictions``).
 
     Args:
         df: DataFrame primario ``prm_cardiometabolic``.
         risk_model: Pipeline del modelo de riesgo entrenado.
         bioage_model: Pipeline del modelo de edad biológica entrenado.
+        clustering_model: Pipeline del modelo de clustering entrenado.
         risk_params: parámetros del modelo de riesgo (usa ``features``).
         bioage_params: parámetros del modelo de edad biológica (``features``, ``min_age``).
+        clustering_params: parámetros del modelo de clustering (usa ``features``).
 
     Returns:
         DataFrame con las predicciones por persona.
     """
     risk_features = risk_params["features"]
     bio_features = bioage_params["features"]
+    cluster_features = clustering_params["features"]
     min_age = bioage_params.get("min_age", 18)
 
     out = pd.DataFrame({"SEQN": df["SEQN"].astype("int64"), "age": df["age"]})
@@ -416,17 +502,25 @@ def build_predictions(
     out["biological_age"] = np.where(is_adult, bio_pred, np.nan)
     out["age_gap"] = (out["biological_age"] - out["age"]).round(1)
 
+    # --- Modelo 3: perfil de salud (clustering no supervisado, 0-3) ---
+    x_cluster = df[cluster_features].apply(pd.to_numeric, errors="coerce")
+    out["health_cluster"] = clustering_model.predict(x_cluster).astype("int64")
+
     log.info(
-        "Predicciones generadas: %d personas | alto riesgo=%d | con edad biológica=%d",
+        "Predicciones generadas: %d personas | alto riesgo=%d | con edad biológica=%d | clusters=%d",
         len(out),
         int(out["high_risk"].sum()),
         int(out["biological_age"].notna().sum()),
+        out["health_cluster"].nunique(),
     )
     return out
 
 
 def store_models_in_db(
-    risk_model: Pipeline, bioage_model: Pipeline, db_params: dict
+    risk_model: Pipeline,
+    bioage_model: Pipeline,
+    clustering_model: Pipeline,
+    db_params: dict,
 ) -> dict:
     """Guarda los modelos serializados (pickle) como BLOB en la base de datos.
 
@@ -437,6 +531,7 @@ def store_models_in_db(
     Args:
         risk_model: Pipeline del modelo de riesgo entrenado.
         bioage_model: Pipeline del modelo de edad biológica entrenado.
+        clustering_model: Pipeline del modelo de clustering entrenado.
         db_params: dict con la clave ``url`` (cadena de conexión SQLAlchemy).
 
     Returns:
@@ -452,7 +547,11 @@ def store_models_in_db(
 
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     rows = []
-    for name, model in (("risk_model", risk_model), ("bioage_model", bioage_model)):
+    for name, model in (
+        ("risk_model", risk_model),
+        ("bioage_model", bioage_model),
+        ("clustering_model", clustering_model),
+    ):
         n_features = getattr(model.named_steps["imputer"], "n_features_in_", None)
         rows.append(
             {
