@@ -30,7 +30,7 @@ API REST     ┘     ingestion → processing → reporting
 
 Detalle y diagrama en `docs/architecture.md`.
 
-El pipeline tiene **13 nodos**. La etapa de processing entrena además dos modelos de machine learning (riesgo y edad biológica).
+El pipeline tiene **14 nodos**. La etapa de processing entrena además tres modelos de machine learning (riesgo, edad biológica y perfiles de salud).
 
 ---
 
@@ -83,7 +83,7 @@ El pipeline tiene **13 nodos**. La etapa de processing entrena además dos model
 │       └── credentials.yml
 ├── data/                        # Datos (no versionados; reproducibles vía scripts)
 │   ├── 01_raw/                  # Datos crudos NHANES (.xpt y .csv)
-│   ├── 06_models/               # Artefactos ML: risk_model.pkl, bioage_model.pkl
+│   ├── 06_models/               # Artefactos ML: risk_model.pkl, bioage_model.pkl, clustering_model.pkl
 │   └── 08_reporting/            # Parquets de reporting para API y dashboard
 ├── repo/                        # Evidencia de colaboración Git (ramas, PRs, commits)
 ├── notebooks/                   # Análisis exploratorio
@@ -115,15 +115,21 @@ El pipeline de processing entrena tres modelos (scikit-learn) sobre el dataset p
 
 > ⚠️ La "edad biológica" es un proxy estadístico de envejecimiento, no una predicción de años de vida.
 
-### Modelo 3 — Perfiles de Salud (clustering · no supervisado)
-- **Tipo:** KMeans (k=4) + StandardScaler + imputación por mediana.
-- **Propósito:** segmentación **no supervisada** de la población en 4 perfiles de salud a partir de features cardiometabólicas, sin variable objetivo.
-- **Salida:** columna `health_cluster` (valores 0–3) en la tabla de predicciones (`model_predictions`).
+### Modelo 3 — Perfiles de Salud (clustering · segmentación poblacional)
+- **Tipo:** `KMeans` (k=4) dentro de un `Pipeline` de scikit-learn (`SimpleImputer` mediana → `StandardScaler` → `KMeans`).
+- **Propósito:** segmentación **no supervisada** — agrupa a las personas en 4 perfiles clínicos sin necesitar etiquetas previas.
 - **Features:** `bmi`, `age`, `bp_systolic_mean`, `bp_diastolic_mean`, `hba1c_pct`, `glucose_mgdl`, `cholesterol_total`, `waist_cm`.
+- **Resultados (15.560 personas):**
+  - **Cluster 0 (34,7 %):** adultos con obesidad, metabólicamente estables.
+  - **Cluster 1 (2,3 %):** diabéticos descompensados — HbA1c media 9,4, glucosa media 221 — grupo crítico.
+  - **Cluster 2 (46,9 %):** jóvenes/menores sanos — edad media 12 años.
+  - **Cluster 3 (16,1 %):** adultos hipertensos con dislipidemia — presión media 144/85.
+- **Inercia:** 68.153,7.
 - **Artefacto:** `data/06_models/clustering_model.pkl`
 - **Nodo:** `train_clustering_model_node`
+- **Registro en Kedro:** `conf/base/catalog.yml` → `clustering_model` (PickleDataset); `conf/base/parameters.yml` → sección `clustering_model`.
 
-> ℹ️ Los perfiles (clusters) son agrupaciones estadísticas; su etiqueta numérica (0–3) no implica un orden de gravedad.
+> ℹ️ Como `age` es una de las features, el modelo capturó con fuerza el eje etario (el cluster 2 = menores). Es un resultado válido; para perfiles puramente metabólicos se podría excluir `age` de las features.
 
 ---
 
@@ -148,7 +154,7 @@ pip install -r requirements.txt
 python scripts/download_nhanes.py     # descarga los .XPT de la CDC
 python scripts/xpt_to_csv.py          # genera los CSV (fuente 1)
 python docker/seed_db.py              # carga la fuente 2 en Postgres (opcional)
-kedro run                             # ejecuta el ETL completo (13 nodos, entrena ambos modelos)
+kedro run                             # ejecuta el ETL completo (14 nodos, entrena los tres modelos)
 uvicorn api.main:app --port 8000      # API
 streamlit run dashboards/app.py       # Dashboard
 ```
@@ -281,6 +287,7 @@ docker-compose up --build   # primera vez (construye imágenes)
 | 🛠️ Operativa | pages/3_Operativa.py | Tablas detalladas y descarga de datos |
 | 🤖 Predicción de Riesgo | pages/4_Prediccion.py | Formulario + gauge con la probabilidad de alto riesgo |
 | 🧬 Edad Biológica | pages/5_EdadBiologica.py | Gauge de edad biológica vs. edad real (age gap) |
+| 🧩 Perfiles de Salud | pages/6_Clustering.py | Formulario que asigna a una persona a uno de los 4 perfiles (clusters) de salud |
 
 ---
 
@@ -319,6 +326,12 @@ Factores de riesgo cardiometabólico (obesidad, hipertensión, diabetes y dislip
 ---
 
 ## 📝 Changelog
+
+### 2026-07-03 — Modelo 3 de clustering (perfiles de salud)
+- Modelo 3: KMeans clustering (k=4) agregado al pipeline de processing.
+- Dashboard: nueva vista 🧩 Perfiles de Salud (`pages/6_Clustering.py`).
+- Pipeline: ampliado a 14 nodos.
+- Dependencias: `scikit-learn` agregado a `dashboards/requirements.txt` y `api/requirements.txt`.
 
 ### 2026-07-03 — Despliegue en AWS EC2
 - Instancia EC2 `t3.medium` con Amazon Linux 2023 levantada en AWS Academy Learner Lab.
