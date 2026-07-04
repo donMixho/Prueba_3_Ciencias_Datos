@@ -71,6 +71,20 @@ bioage_model:
   n_estimators: 300
   max_depth: 12
 
+# --- Modelo de ML: clustering no supervisado (perfiles de salud, KMeans k=4) ---
+clustering_model:
+  features:
+    - bmi
+    - age
+    - bp_systolic_mean
+    - bp_diastolic_mean
+    - hba1c_pct
+    - glucose_mgdl
+    - cholesterol_total   # nombre real de la columna (LBXTC); "total_cholesterol" no existe
+    - waist_cm
+  n_clusters: 4
+  random_state: 42
+
 # --- Conexión a la base de datos para guardar modelos ---
 # Local: SQLite (default abajo). En Docker, la variable de entorno DB_URL
 # (Postgres) tiene prioridad sobre este valor (ver store_models_in_db).
