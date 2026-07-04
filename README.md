@@ -97,7 +97,7 @@ El pipeline tiene **13 nodos**. La etapa de processing entrena además dos model
 
 ## 🤖 Modelos de Machine Learning
 
-El pipeline de processing entrena dos modelos (scikit-learn) sobre el dataset primario `prm_cardiometabolic` y los persiste como artefactos pickle en `data/06_models/`.
+El pipeline de processing entrena tres modelos (scikit-learn) sobre el dataset primario `prm_cardiometabolic` y los persiste como artefactos pickle en `data/06_models/`.
 
 ### Modelo 1 — Riesgo Cardiometabólico (clasificación)
 - **Tipo:** RandomForestClassifier (200 árboles, max_depth=8) + imputación por mediana.
@@ -114,6 +114,16 @@ El pipeline de processing entrena dos modelos (scikit-learn) sobre el dataset pr
 - **Artefacto:** `data/06_models/bioage_model.pkl`
 
 > ⚠️ La "edad biológica" es un proxy estadístico de envejecimiento, no una predicción de años de vida.
+
+### Modelo 3 — Perfiles de Salud (clustering · no supervisado)
+- **Tipo:** KMeans (k=4) + StandardScaler + imputación por mediana.
+- **Propósito:** segmentación **no supervisada** de la población en 4 perfiles de salud a partir de features cardiometabólicas, sin variable objetivo.
+- **Salida:** columna `health_cluster` (valores 0–3) en la tabla de predicciones (`model_predictions`).
+- **Features:** `bmi`, `age`, `bp_systolic_mean`, `bp_diastolic_mean`, `hba1c_pct`, `glucose_mgdl`, `cholesterol_total`, `waist_cm`.
+- **Artefacto:** `data/06_models/clustering_model.pkl`
+- **Nodo:** `train_clustering_model_node`
+
+> ℹ️ Los perfiles (clusters) son agrupaciones estadísticas; su etiqueta numérica (0–3) no implica un orden de gravedad.
 
 ---
 
@@ -147,46 +157,71 @@ streamlit run dashboards/app.py       # Dashboard
 
 ## ☁️ Despliegue en AWS EC2
 
-El proyecto está desplegado en una instancia EC2 de AWS Academy (Learner Lab).
+El proyecto está configurado para desplegarse en una instancia EC2 de AWS Academy (Learner Lab).
 
-**URLs activas:**
-- Dashboard: http://54.145.183.28:8501
-- API: http://54.145.183.28:8000/docs
+> ⚠️ **Importante:** AWS Academy reasigna la IP pública cada vez que el laboratorio se reinicia.
+> La IP activa debe consultarse en la consola de AWS antes de cada sesión.
+
+### Flujo de reconexión (cada sesión)
+
+**Paso 1 — Iniciar el laboratorio**
+1. Ingresar a AWS Academy → Learner Lab → clic en **Start Lab**
+2. Esperar hasta que el indicador quede en **verde**
+3. Clic en **AWS** para abrir la consola
+4. Ir a **EC2 → Instances** y copiar el valor de **Public IPv4 address**
+
+**Paso 2 — Conectarse por SSH**
+```bash
+ssh -i ~/Downloads/nhanes-key.pem ec2-user@<IP_PUBLICA>
+```
+> Reemplaza `<IP_PUBLICA>` con la IP copiada en el paso anterior.
+> Si aparece error de permisos, ejecuta primero: `chmod 400 ~/Downloads/nhanes-key.pem`
+
+**Paso 3 — Levantar el stack**
+```bash
+cd Prueba_3_Ciencias_Datos
+git pull origin Leandro        # trae los últimos cambios
+docker-compose up -d           # levanta los 5 servicios en segundo plano
+docker-compose ps              # verifica que api y dashboard estén "Up"
+```
+
+**Paso 4 — Verificar servicios**
+
+| Servicio | URL |
+|----------|-----|
+| Dashboard | `http://<IP_PUBLICA>:8501` |
+| API (docs) | `http://<IP_PUBLICA>:8000/docs` |
 
 ### Configuración de la instancia
 
 | Parámetro | Valor |
 |-----------|-------|
-| AMI | Amazon Linux 2023 (kernel-6.18) |
+| AMI | Amazon Linux 2023 |
 | Tipo | t3.medium (2 vCPU, 4 GB RAM) |
 | Almacenamiento | 20 GiB (gp3) |
-| Key pair | RSA (.pem) |
 
-### Security Group — puertos habilitados
+### Puertos habilitados (Security Group)
 
-| Puerto | Protocolo | Origen | Uso |
-|--------|-----------|--------|-----|
-| 22 | TCP | My IP | SSH |
-| 8000 | TCP | 0.0.0.0/0 | FastAPI |
-| 8501 | TCP | 0.0.0.0/0 | Streamlit |
+| Puerto | Protocolo | Uso |
+|--------|-----------|-----|
+| 22 | TCP | SSH |
+| 8000 | TCP | FastAPI |
+| 8501 | TCP | Streamlit |
 
 > ⚠️ **Problema encontrado:** Al crear la instancia, los puertos 8000 y 8501 no quedaron abiertos por defecto. Fue necesario editarlos manualmente en EC2 → Security Groups → Inbound Rules → agregar TCP personalizado para cada puerto con origen `0.0.0.0/0`.
 
-### Comandos de despliegue en EC2 (desde cero)
+### Primera instalación en EC2 (desde cero)
 
-#### Paso 1 — Conectarse por SSH
-```bash
-ssh -i ~/Downloads/nhanes-key.pem ec2-user@<IP_PUBLICA>
-```
+Solo la primera vez que se aprovisiona la instancia (después basta con el *Flujo de reconexión*):
 
-#### Paso 2 — Instalar dependencias
+#### Paso 1 — Instalar dependencias
 ```bash
 sudo yum update -y && sudo yum install -y docker git
 sudo systemctl start docker && sudo systemctl enable docker
 sudo usermod -aG docker ec2-user
 ```
 
-#### Paso 3 — Instalar Docker Compose y buildx
+#### Paso 2 — Instalar Docker Compose y buildx
 ```bash
 sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
@@ -198,13 +233,13 @@ chmod +x ~/.docker/cli-plugins/docker-buildx
 
 > ⚠️ **Problema encontrado:** `docker-compose up --build` falló con el error `compose build requires buildx 0.17.0 or later`. Solución: instalar manualmente el plugin `docker-buildx` desde los releases oficiales de GitHub.
 
-#### Paso 4 — Clonar el repositorio
+#### Paso 3 — Clonar el repositorio
 ```bash
 git clone -b Leandro https://github.com/donMixho/Prueba_3_Ciencias_Datos.git
 cd Prueba_3_Ciencias_Datos
 ```
 
-#### Paso 5 — Crear credenciales de Kedro
+#### Paso 4 — Crear credenciales de Kedro
 ```bash
 mkdir -p conf/local
 cat > conf/local/credentials.yml << 'EOF'
@@ -215,30 +250,10 @@ EOF
 
 > ⚠️ **Problema encontrado:** Kedro falló con `KeyError: 'db_lab'` porque el archivo `conf/local/credentials.yml` está en `.gitignore` y no se clona. Debe crearse manualmente en la EC2.
 
-#### Paso 6 — Levantar el stack
+#### Paso 5 — Primer build del stack
 ```bash
 cp .env.example .env
 docker-compose up --build   # primera vez (construye imágenes)
-```
-
-#### Paso 7 — Correr en segundo plano (para cerrar la terminal)
-```bash
-docker-compose up -d
-```
-
-#### Paso 8 — Verificar estado de los contenedores
-```bash
-docker-compose ps
-```
-
-### Reconexión al servidor (sesiones futuras)
-
-Si el laboratorio se reinicia o se necesita volver a levantar los servicios:
-
-```bash
-ssh -i ~/Downloads/nhanes-key.pem ec2-user@<IP_PUBLICA>
-cd Prueba_3_Ciencias_Datos
-docker-compose up -d
 ```
 
 ---
